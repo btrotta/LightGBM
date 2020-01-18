@@ -194,7 +194,7 @@ class DenseBin: public Bin {
 
   data_size_t Split(
     uint32_t min_bin, uint32_t max_bin, uint32_t default_bin, MissingType missing_type, bool default_left,
-    uint32_t threshold, data_size_t* data_indices, data_size_t num_data,
+    uint32_t threshold, const data_size_t* data_indices, data_size_t num_data,
     data_size_t* lte_indices, data_size_t* gt_indices) const override {
     if (num_data <= 0) { return 0; }
     VAL_T th = static_cast<VAL_T>(threshold + min_bin);
@@ -253,9 +253,97 @@ class DenseBin: public Bin {
     return lte_count;
   }
 
+  void GetSplitInfo(uint32_t min_bin, uint32_t max_bin, uint32_t default_bin, MissingType missing_type, bool default_left,
+    uint32_t threshold, const data_size_t* data_indices, data_size_t num_data, const score_t* ordered_gradients,
+    const score_t* ordered_hessians, SplitInfo* output) const override {
+    if (num_data <= 0) { return; }
+    VAL_T th = static_cast<VAL_T>(threshold + min_bin);
+    const VAL_T minb = static_cast<VAL_T>(min_bin);
+    const VAL_T maxb = static_cast<VAL_T>(max_bin);
+    VAL_T t_default_bin = static_cast<VAL_T>(min_bin + default_bin);
+    if (default_bin == 0) {
+      th -= 1;
+      t_default_bin -= 1;
+    }
+    data_size_t lte_count = 0;
+    double sum_lte_gradients = 0;
+    double sum_lte_hessians = 0;
+    data_size_t gt_count = 0;
+    double sum_gt_gradients = 0;
+    double sum_gt_hessians = 0;
+    data_size_t* default_count = &gt_count;
+    double* sum_default_gradients = &sum_gt_gradients;
+    double* sum_default_hessians = &sum_gt_hessians;
+    if (missing_type == MissingType::NaN) {
+      if (default_bin <= threshold) {
+        default_count = &lte_count;
+        sum_default_gradients = &sum_lte_gradients;
+        sum_default_hessians = &sum_lte_hessians;
+      }
+      data_size_t* missing_default_count = &gt_count;
+      double* sum_missing_default_gradients = &sum_gt_gradients;
+      double* sum_missing_default_hessians = &sum_gt_hessians;
+      if (default_left) {
+        missing_default_count = &lte_count;
+        sum_missing_default_gradients = &sum_lte_gradients;
+        sum_missing_default_hessians = &sum_lte_hessians;
+      }
+      for (data_size_t i = 0; i < num_data; ++i) {
+        const data_size_t idx = data_indices[i];
+        const VAL_T bin = data_[idx];
+        if (bin < minb || bin > maxb || t_default_bin == bin) {
+          (*default_count)++;
+          *sum_default_gradients += ordered_gradients[i];
+          *sum_default_hessians += ordered_hessians[i];
+        } else if (bin == maxb) {
+          (*missing_default_count)++;
+          *sum_missing_default_gradients += ordered_gradients[i];
+          *sum_default_hessians += ordered_hessians[i];
+        } else if (bin > th) {
+          gt_count++;
+          sum_gt_gradients += ordered_gradients[i];
+          sum_gt_hessians += ordered_hessians[i];
+        } else {
+          lte_count++;
+          sum_lte_gradients += ordered_gradients[i];
+          sum_lte_hessians += ordered_hessians[i];
+        }
+      }
+    } else {
+      if ((default_left && missing_type == MissingType::Zero) || (default_bin <= threshold && missing_type != MissingType::Zero)) {
+        default_count = &lte_count;
+        sum_default_gradients = &sum_lte_gradients;
+        sum_default_hessians = &sum_lte_hessians;
+      }
+      for (data_size_t i = 0; i < num_data; ++i) {
+        const data_size_t idx = data_indices[i];
+        const VAL_T bin = data_[idx];
+        if (bin < minb || bin > maxb || t_default_bin == bin) {
+          (*default_count)++;
+          *sum_default_gradients += ordered_gradients[i];
+          *sum_default_hessians += ordered_hessians[i];
+        } else if (bin > th) {
+          gt_count++;
+          sum_gt_gradients += ordered_gradients[i];
+          sum_gt_hessians += ordered_hessians[i];
+        } else {
+          lte_count++;
+          sum_lte_gradients += ordered_gradients[i];
+          sum_lte_hessians += ordered_hessians[i];
+        }
+      }
+    }
+    output->left_count = lte_count;
+    output->right_count = gt_count;
+    output->left_sum_gradient = sum_lte_gradients;
+    output->left_sum_hessian = sum_lte_hessians;
+    output->right_sum_gradient = sum_gt_gradients;
+    output->right_sum_hessian = sum_gt_hessians;
+  }
+  
   data_size_t SplitCategorical(
     uint32_t min_bin, uint32_t max_bin, uint32_t default_bin,
-    const uint32_t* threshold, int num_threahold, data_size_t* data_indices, data_size_t num_data,
+    const uint32_t* threshold, int num_threahold, const data_size_t* data_indices, data_size_t num_data,
     data_size_t* lte_indices, data_size_t* gt_indices) const override {
     if (num_data <= 0) { return 0; }
     data_size_t lte_count = 0;
@@ -279,6 +367,50 @@ class DenseBin: public Bin {
     }
     return lte_count;
   }
+
+  void GetCategoricalSplitInfo(uint32_t min_bin, uint32_t max_bin, uint32_t default_bin, const uint32_t* threshold,
+                                      int num_threahold, const data_size_t* data_indices, data_size_t num_data, const score_t* ordered_gradients,
+                                      const score_t* ordered_hessians, SplitInfo* output) const override {
+    if (num_data <= 0) { return; }
+    data_size_t lte_count = 0;
+    double sum_lte_gradients = 0;
+    double sum_lte_hessians = 0;
+    data_size_t gt_count = 0;
+    double sum_gt_gradients = 0;
+    double sum_gt_hessians = 0;
+    data_size_t* default_count = &gt_count;
+    double* sum_default_gradients = &sum_gt_gradients;
+    double* sum_default_hessians = &sum_gt_hessians;
+    if (Common::FindInBitset(threshold, num_threahold, default_bin)) {
+      default_count = &lte_count;
+      sum_default_gradients = &sum_lte_gradients;
+      sum_default_hessians = &sum_lte_hessians;
+    }
+    for (data_size_t i = 0; i < num_data; ++i) {
+      const data_size_t idx = data_indices[i];
+      const uint32_t bin = data_[idx];
+      if (bin < min_bin || bin > max_bin) {
+        (*default_count)++;
+        *sum_default_gradients += ordered_gradients[i];
+        *sum_default_hessians += ordered_hessians[i];
+      } else if (Common::FindInBitset(threshold, num_threahold, bin - min_bin)) {
+        lte_count++;
+        sum_lte_gradients += ordered_gradients[i];
+        sum_lte_hessians += ordered_hessians[i];
+      } else {
+        gt_count++;
+        sum_gt_gradients += ordered_gradients[i];
+        sum_gt_hessians += ordered_hessians[i];
+      }
+    }
+    output->left_count = lte_count;
+    output->right_count = gt_count;
+    output->left_sum_gradient = sum_lte_gradients;
+    output->left_sum_hessian = sum_lte_hessians;
+    output->right_sum_gradient = sum_gt_gradients;
+    output->right_sum_hessian = sum_gt_hessians;
+  }
+
 
   data_size_t num_data() const override { return num_data_; }
 

@@ -4,6 +4,7 @@
  */
 #include <LightGBM/tree_learner.h>
 
+#include "extra_tree_learner.h"
 #include "gpu_tree_learner.h"
 #include "parallel_tree_learner.h"
 #include "serial_tree_learner.h"
@@ -13,7 +14,11 @@ namespace LightGBM {
 TreeLearner* TreeLearner::CreateTreeLearner(const std::string& learner_type, const std::string& device_type, const Config* config) {
   if (device_type == std::string("cpu")) {
     if (learner_type == std::string("serial")) {
-      return new SerialTreeLearner(config);
+      if (config->extra_trees) {
+        return new ExtraTreeLearner(config);
+      } else {
+        return new SerialTreeLearner(config);
+      }
     } else if (learner_type == std::string("feature")) {
       return new FeatureParallelTreeLearner<SerialTreeLearner>(config);
     } else if (learner_type == std::string("data")) {
@@ -23,7 +28,11 @@ TreeLearner* TreeLearner::CreateTreeLearner(const std::string& learner_type, con
     }
   } else if (device_type == std::string("gpu")) {
     if (learner_type == std::string("serial")) {
-      return new GPUTreeLearner(config);
+      if (config->extra_trees) {
+        return new ExtraTreeLearner(config);
+      } else {
+        return new SerialTreeLearner(config);
+      }
     } else if (learner_type == std::string("feature")) {
       return new FeatureParallelTreeLearner<GPUTreeLearner>(config);
     } else if (learner_type == std::string("data")) {

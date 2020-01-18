@@ -416,16 +416,29 @@ class Dataset {
                            bool is_constant_hessian,
                            HistogramBinEntry* histogram_data) const;
 
+
+  void Dataset::ConstructOrderedBins(const data_size_t* data_indices, data_size_t num_data, const score_t* gradients, const score_t* hessians,
+                                     score_t* ordered_gradients, score_t* ordered_hessians, bool is_constant_hessian) const;
+
   void FixHistogram(int feature_idx, double sum_gradient, double sum_hessian, data_size_t num_data,
                     HistogramBinEntry* data) const;
 
   inline data_size_t Split(int feature,
                            const uint32_t* threshold, int num_threshold,  bool default_left,
-                           data_size_t* data_indices, data_size_t num_data,
+                           const data_size_t* data_indices, data_size_t num_data,
                            data_size_t* lte_indices, data_size_t* gt_indices) const {
     const int group = feature2group_[feature];
     const int sub_feature = feature2subfeature_[feature];
     return feature_groups_[group]->Split(sub_feature, threshold, num_threshold, default_left, data_indices, num_data, lte_indices, gt_indices);
+  }
+
+  /*! brief Get sum of gradients and hessians for proposed split, used for extra trees */
+  inline void GetSplitInfo(int feature, const uint32_t* threshold, int num_threshold,  bool default_left,
+                                  const data_size_t* data_indices, data_size_t num_data, const score_t* gradients, const score_t* hessians,
+                                  SplitInfo* output) const {
+    const int group = feature2group_[feature];
+    const int sub_feature = feature2subfeature_[feature];
+    feature_groups_[group]->GetSplitInfo(sub_feature, threshold, num_threshold, default_left, data_indices, num_data, gradients, hessians, output);
   }
 
   inline int SubFeatureBinOffset(int i) const {

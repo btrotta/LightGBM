@@ -819,6 +819,24 @@ void Dataset::DumpTextFile(const char* text_filename) {
   fclose(file);
 }
 
+void Dataset::ConstructOrderedBins(const data_size_t* data_indices, data_size_t num_data, const score_t* gradients, const score_t* hessians,
+                                   score_t* ordered_gradients, score_t* ordered_hessians, bool is_constant_hessian) const {
+  if (data_indices != nullptr) {
+    if (!is_constant_hessian) {
+      #pragma omp parallel for schedule(static)
+      for (data_size_t i = 0; i < num_data; ++i) {
+        ordered_gradients[i] = gradients[data_indices[i]];
+        ordered_hessians[i] = hessians[data_indices[i]];
+      }
+    } else {
+      #pragma omp parallel for schedule(static)
+      for (data_size_t i = 0; i < num_data; ++i) {
+        ordered_gradients[i] = gradients[data_indices[i]];
+      }
+    }
+  }
+}
+
 void Dataset::ConstructHistograms(const std::vector<int8_t>& is_feature_used,
                                   const data_size_t* data_indices, data_size_t num_data,
                                   int leaf_idx,

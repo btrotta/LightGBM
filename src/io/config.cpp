@@ -311,6 +311,10 @@ void Config::CheckParamConflict() {
       num_leaves = static_cast<int>(full_num_leaves);
     }
   }
+
+  if (extra_trees && tree_learner != std::string("serial")) {
+    Log::Fatal("If extra_trees is true, tree learner type must be serial.");
+  }
 }
 
 std::string Config::ToString() const {

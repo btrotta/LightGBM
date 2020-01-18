@@ -16,6 +16,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include <../src/treelearner/split_info.hpp>
+
 namespace LightGBM {
 
 enum BinType {
@@ -391,8 +393,13 @@ class Bin {
   */
   virtual data_size_t Split(uint32_t min_bin, uint32_t max_bin,
     uint32_t default_bin, MissingType missing_type, bool default_left, uint32_t threshold,
-    data_size_t* data_indices, data_size_t num_data,
+    const data_size_t* data_indices, data_size_t num_data,
     data_size_t* lte_indices, data_size_t* gt_indices) const = 0;
+
+  /*! brief Get sum of gradients and hessians for proposed split, used for extra trees */
+  virtual void GetSplitInfo(uint32_t min_bin, uint32_t max_bin, uint32_t default_bin, MissingType missing_type, bool default_left,
+                            uint32_t threshold, const data_size_t* data_indices, data_size_t num_data, const score_t* gradients,
+                            const score_t* hessians, SplitInfo* output) const = 0;
 
   /*!
   * \brief Split data according to threshold, if bin <= threshold, will put into left(lte_indices), else put into right(gt_indices)
@@ -409,8 +416,13 @@ class Bin {
   */
   virtual data_size_t SplitCategorical(uint32_t min_bin, uint32_t max_bin,
                             uint32_t default_bin, const uint32_t* threshold, int num_threshold,
-                            data_size_t* data_indices, data_size_t num_data,
+                            const data_size_t* data_indices, data_size_t num_data,
                             data_size_t* lte_indices, data_size_t* gt_indices) const = 0;
+
+  /*! brief Get sum of gradients and hessians for proposed split, used for extra trees */
+  virtual void GetCategoricalSplitInfo(uint32_t min_bin, uint32_t max_bin, uint32_t default_bin, const uint32_t* threshold,
+                                              int num_threshold, const data_size_t* data_indices, data_size_t num_data,const score_t* gradients,
+                                              const score_t* hessians, SplitInfo* output) const = 0;
 
   /*!
   * \brief Create the ordered bin for this bin
