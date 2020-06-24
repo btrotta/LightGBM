@@ -125,6 +125,7 @@ lgb.train <- function(params = list(),
   }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
   # Convert interaction constraints to feature numbers
   if (!is.null(params[["interaction_constraints"]])) {
 
